@@ -1,6 +1,5 @@
 (function(window){
-    let shoppingCart = window.shoppingCart || {};
-    let productList = shoppingCart.dataCenter.getList();
+    let productList = window.shoppingCart.dataCenter.getList();
     if(productList){
         let listHTML = '';
         for(let i = 0;i<productList.length;i++){
@@ -35,94 +34,139 @@
             }
         }
     }
-    shoppingCart.selectedProducts = [];
-    shoppingCart.addResource = (res)=>{
-        if(shoppingCart.selectedProducts.length === 0){
-            shoppingCart.selectedProducts.push(buildSelectedRes(res))
-        }else{
-            let dontHaveThisProd = shoppingCart.selectedProducts.every((data)=>{
-                if(data.index === res){
-                    data.count+=1;
-                    return false
-                }else{
-                    return true
-                }
-            })
-            if(dontHaveThisProd){
-                shoppingCart.selectedProducts.push(buildSelectedRes(res))
-            }  
-        }
-    }
-    shoppingCart.payment = ()=>{
-        totallyPrice = 0;
-        let selectListInner = '';
-        if(shoppingCart.selectedProducts.length === 0){
-            alert('您还没有选购任何商品')
-        }else{
-            shoppingCart.selectedProducts.map((res)=>{
-                totallyPrice += res.count*res.price*res.sale;
-                selectListInner += `
-                <li class="">
-                    <div>${res.name}</div>
-                    <div>数量 ${res.count}</div>
-                </li>
-                ` 
-                return res;
-            })
-            return {totallyPrice,selectListInner}
-        }
-
-    }
-    shoppingCart.showSelectedList = ()=>{
-        let shoppingCartInfo = shoppingCart.payment();
-        if(totallyPrice !== undefined){
-            let tickets = shoppingCart.dataCenter.getTicket();
-            let selectOptions = '<option value=0 disabled selected>请选择优惠券</option><option value=0>不使用优惠</option>';
-            tickets.map((ticket)=>{
-                if(ticket.totallyPrice <= totallyPrice){
-                    selectOptions+=`<option value=${ticket.sale}>实付金额满${ticket.totallyPrice}减${ticket.sale}</option>`;
-                }
-                return ticket.totallyPrice <= totallyPrice;
-            })
-
-            let dialogEle = document.createElement('div');
-            dialogEle.className = 'dialog';
-            dialogEle.innerHTML = `
-            <div>
-                <ul class="selectList">
-                    ${shoppingCartInfo.selectListInner}
-                </ul>
-                <div>
-                    您一共需要支付<span class="payment">${shoppingCartInfo.totallyPrice}</span>元
-                </div>
-                <select onchange="shoppingCart.selectTicket()">
-                    ${selectOptions}
-                </select>
-                <div class="button">
-                    <button onclick="shoppingCart.paymentSuccessful()">确认</button>
-                    <button onclick="shoppingCart.hideSelectedList()">取消</button>
-                </div>
-            </div>
-            `;
-            document.body.appendChild(dialogEle);
-        }
-    }
+    shoppingCart.selectedProductsInfo = {
+        list:[],
+        totallyPrice:0
+    };
+    (function(value){
+        Object.defineProperty(shoppingCart.selectedProductsInfo,'list',{
+            get:function(){
+                return value;
+            },
+            set:function(newVal){
+                value = newVal;
+                shoppingCart.selectedProductsInfo.list.map((res)=>{
+                    shoppingCart.selectedProductsInfo.totallyPrice += res.count*res.price*res.sale;
+                    return res;
+                })
+                // console.log(shoppingCart.selectedProductsInfo.list)
+            }
+        })
+    })([])
+    let shoppingCartObj = {
+        ...window.shoppingCart,
+        addResource:function(res){
+            if(shoppingCart.selectedProductsInfo.list.length === 0){
+                shoppingCart.selectedProductsInfo.list = [buildSelectedRes(res)];
+            }else{
+                countCaculate('add');
+            }
+        },
+        payment:function(){
+            totallyPrice = 0;
+            let selectListInner = '';
+            if(shoppingCart.selectedProductsInfo.list.length === 0){
+                alert('您还没有选购任何商品')
+            }else{
+                this.selectedProductsInfo.list.map((res)=>{
+                    totallyPrice += res.count*res.price*res.sale;
+                    selectListInner += `
+                    <li class="">
+                        <div>${res.name}</div>
+                        <div>数量 <button onclick="shoppingCart.countReduce(${res.index},event)">-</button><span class="count">${res.count}</span><button onclick="shoppingCart.countAdd(res)">+</button></div>
+                    </li>
+                    ` 
+                    return res;
+                })
+                return {totallyPrice,selectListInner}
+            }
     
-    shoppingCart.paymentSuccessful = ()=>{
-        alert('支付成功');
-        shoppingCart.hideSelectedList();
-        shoppingCart.selectedProducts = [];
-    }
+        },
+        showSelectedList:function(){
+            let shoppingCartInfo = this.payment();
+            if(totallyPrice !== undefined){
+                let tickets = this.dataCenter.getTicket();
+                let selectOptions = '<option value=0 disabled selected>请选择优惠券</option><option value=0>不使用优惠</option>';
+                tickets.map((ticket)=>{
+                    if(ticket.totallyPrice <= totallyPrice){
+                        selectOptions+=`<option value=${ticket.sale}>实付金额满${ticket.totallyPrice}减${ticket.sale}</option>`;
+                    }
+                    return ticket.totallyPrice <= totallyPrice;
+                })
+    
+                let dialogEle = document.createElement('div');
+                dialogEle.className = 'dialog';
+                dialogEle.innerHTML = `
+                <div>
+                    <ul class="selectList">
+                        ${shoppingCartInfo.selectListInner}
+                    </ul>
+                    <div>
+                        您一共需要支付<span class="payment">${shoppingCartInfo.totallyPrice}</span>元
+                    </div>
+                    <select onchange="shoppingCart.selectTicket()">
+                        ${selectOptions}
+                    </select>
+                    <div class="button">
+                        <button onclick="shoppingCart.paymentSuccessful()">确认</button>
+                        <button onclick="shoppingCart.hideSelectedList()">取消</button>
+                    </div>
+                </div>
+                `;
+                document.body.appendChild(dialogEle);
+            }
+        }, 
+        paymentSuccessful:function(){
+            alert('支付成功');
+            this.hideSelectedList();
+            this.selectedProductsInfo.list = [];
+        },
+        hideSelectedList:()=>{
+            let dialogEle = document.querySelector('.dialog');
+            if(dialogEle){
+                document.body.removeChild(dialogEle);
+            }
+        },
+        selectTicket:function(){
+            let totallyPrice = this.payment().totallyPrice
+            let sale = document.querySelector('select').value;
+            document.querySelector('.payment').innerHTML = totallyPrice - Number(sale);
+        },
+        countReduce:function(index,event){
+            console.log(index)
+            let count =  event.target.parentElement.children[1].innerText;
+            if(count === '1'){
+                let rootElement = event.target.parentElement.parentElement;
+                document.querySelector('.selectList').removeChild(rootElement);
+            }else{
+                event.target.parentElement.children[1].innerText -=1; 
+            }
+            // window.clickBtn =
 
-    shoppingCart.hideSelectedList = ()=>{
-        let dialogEle = document.querySelector('.dialog');
-        if(dialogEle){
-            document.body.removeChild(dialogEle);
         }
     }
-    shoppingCart.selectTicket = ()=>{
-        let totallyPrice = shoppingCart.payment().totallyPrice
-        let sale = document.querySelector('select').value;
-        document.querySelector('.payment').innerHTML = totallyPrice - Number(sale);
+    function countCaculate(method){
+        let dontHaveThisProd = true
+        let newList = shoppingCart.selectedProductsInfo.list.map((data)=>{
+            if(data.index === res){
+                if(method === 'add'){
+                    data.count+=1;
+                }else if(method === 'reduce'){
+                    data.count -=1
+                }
+                dontHaveThisProd = false;
+            }
+            return data
+        });
+        if(dontHaveThisProd){
+            if(method === 'add'){
+                shoppingCart.selectedProductsInfo.list = [...shoppingCart.selectedProductsInfo.list,buildSelectedRes(res)];                
+            }else if(method === 'reduce'){
+                alert('未找到该资源');
+            }
+        }else{
+            shoppingCart.selectedProductsInfo.list = newList;
+        }
     }
+    window.shoppingCart = shoppingCartObj;
 })(window)
