@@ -141,8 +141,6 @@
             }else{
                 event.target.parentElement.children[1].innerText -=1; 
             }
-            // window.clickBtn =
-
         }
     }
     function countCaculate(method){
